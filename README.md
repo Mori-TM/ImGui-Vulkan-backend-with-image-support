@@ -90,3 +90,8 @@ void EndSingleTimeCommandBuffer(VkCommandBuffer CommandBuffer)
 	vkFreeCommandBuffers(Device, CommandPool, 1, &CommandBuffer);
 }
 ```
+To draw an Image just call this function:
+```C
+ImGui::Image(&DescriptorSet, WindowSize);
+```
+
