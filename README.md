@@ -96,18 +96,16 @@ ImGui::Image(&DescriptorSet, WindowSize);
 ```
 
 To set you're Textures to be opaque
-´´´C
-//Your ImGui rendering
+```C
 ImTextureID OpaqueTextures[1] =
 {
 	(ImTextureID*)&DescriptorSet
 };
 
 ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), CommandBuffers, 1, OpaqueTextures);
-´´´
+```
 
 If you don't use this feature just set 0 and NULL
-´´´C
-//Your ImGui rendering
+```C
 ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), CommandBuffers, 0, NULL);
-´´´
+```
