@@ -140,6 +140,7 @@ struct
 	uint32_t ImageCount;
 
 	VkPipeline Pipeline;
+	VkPipeline OpaquePipeline;
 	VkShaderModule VertexShader;
 	VkShaderModule FragmentShader;
 
@@ -460,7 +461,7 @@ void ImGui_SetupRenderState(ImDrawData* DrawData, VkCommandBuffer CommandBuffer,
 	vkCmdPushConstants(CommandBuffer, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 2, sizeof(float) * 2, Translate);
 }
 
-bool ImGui_ImplVulkan_RenderDrawData(ImDrawData* DrawData, VkCommandBuffer CommandBuffer)
+bool ImGui_ImplVulkan_RenderDrawData(ImDrawData* DrawData, VkCommandBuffer CommandBuffer, int NonAlphaTextureCount, ImTextureID* NonAlphaTextures)
 {
 	int FramebufferWidth = (int)(DrawData->DisplaySize.x * DrawData->FramebufferScale.x);
 	int FramebufferHeight = (int)(DrawData->DisplaySize.y * DrawData->FramebufferScale.y);
@@ -576,6 +577,15 @@ bool ImGui_ImplVulkan_RenderDrawData(ImDrawData* DrawData, VkCommandBuffer Comma
 				vkCmdSetScissor(CommandBuffer, 0, 1, &Scissor);
 
 				// Draw
+				for (int i = 0; i < NonAlphaTextureCount; i++)
+				{
+					if (NonAlphaTextures[i] == DrawCmd->TextureId)
+						vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.OpaquePipeline);
+					else
+						vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.Pipeline);
+
+				}
+				
 				vkCmdBindDescriptorSets(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, 0, 1, (VkDescriptorSet*)DrawCmd->TextureId, 0, NULL);
 				vkCmdDrawIndexed(CommandBuffer, DrawCmd->ElemCount, 1, DrawCmd->IdxOffset + IndexOffset, DrawCmd->VtxOffset + VertexOffset, 0);
 			}
@@ -669,7 +679,7 @@ bool ImGui_CreatePipelineLayout()
 	LayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	LayoutCreateInfo.pNext = NULL;
 	LayoutCreateInfo.flags = 0;
-	LayoutCreateInfo.setLayoutCount = 1;;
+	LayoutCreateInfo.setLayoutCount = 1;
 	LayoutCreateInfo.pSetLayouts = &ImGui_ImplVulkan_Renderer_Info.DescriptorSetLayout;
 	LayoutCreateInfo.pushConstantRangeCount = 1;
 	LayoutCreateInfo.pPushConstantRanges = &PushConstant;
@@ -690,7 +700,7 @@ bool ImGui_CreateShaderModules()
 	CreateInfo.pCode = ImGuiVertexShader;
 
 	if (vkCreateShaderModule(ImGui_ImplVulkan_Renderer_Info.Device, &CreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.VertexShader) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Faild to Create Vertex Shader Module");
+		return printf("[ImGui Vulkan] Failed to Create Vertex Shader Module");
 
 	CreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	CreateInfo.pNext = NULL;
@@ -699,7 +709,7 @@ bool ImGui_CreateShaderModules()
 	CreateInfo.pCode = ImGuiFragmentShader;
 
 	if (vkCreateShaderModule(ImGui_ImplVulkan_Renderer_Info.Device, &CreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.FragmentShader) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Faild to Create Fragment Shader Module");
+		return printf("[ImGui Vulkan] Failed to Create Fragment Shader Module");
 
 	return 1;
 }
@@ -860,7 +870,11 @@ bool ImGui_CreateGraphicsPipeline()
 	PipelineCreateInfo.basePipelineIndex = 0;
 
 	if (vkCreateGraphicsPipelines(ImGui_ImplVulkan_Renderer_Info.Device, NULL, 1, &PipelineCreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.Pipeline) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Faild to Create Graphics Pipeline");
+		return printf("[ImGui Vulkan] Failed to Create Graphics Pipeline");
+
+	ColorBlendAttachmentState.blendEnable = VK_FALSE;
+	if (vkCreateGraphicsPipelines(ImGui_ImplVulkan_Renderer_Info.Device, NULL, 1, &PipelineCreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.OpaquePipeline) != VK_SUCCESS)
+		return printf("[ImGui Vulkan] Failed to Create Opaque Graphics Pipeline");
 
 	return 1;
 }
@@ -873,6 +887,13 @@ void ImGui_ImplVulkan_Init(ImGui_ImplVulkan_InitInfo* InitInfo)
 	ImGui_ImplVulkan_Renderer_Info.Device = InitInfo->Device;
 	ImGui_ImplVulkan_Renderer_Info.PhysicalDevice = InitInfo->PhysicalDevice;
 	ImGui_ImplVulkan_Renderer_Info.ImageCount = InitInfo->ImageCount;
+
+	ImGuiIO* IO = &ImGui::GetIO();
+	IM_ASSERT(IO->BackendRendererUserData == NULL && "Already initialized a renderer backend!");
+
+	IO->BackendRendererUserData = &ImGui_ImplVulkan_Renderer_Info;
+	IO->BackendRendererName = "Custom ImGui Vulkan Impl by Moritz Gooth";
+	IO->BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
 	ImGui_CreateSampler();
 	ImGui_CreateDescriptorSets();
@@ -907,4 +928,5 @@ void ImGui_ImplVulkan_Shutdown()
 	vkDestroyDescriptorSetLayout(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.DescriptorSetLayout, NULL);
 	vkDestroyPipelineLayout(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, NULL);
 	vkDestroyPipeline(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Pipeline, NULL);
+	vkDestroyPipeline(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.OpaquePipeline, NULL);
 }
