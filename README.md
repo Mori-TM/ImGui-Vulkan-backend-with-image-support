@@ -33,6 +33,7 @@ InitInfo.Device = [Your Vulkan device];
 InitInfo.RenderPass = [Your Render Pass];
 InitInfo.PhysicalDevice = [Your Physical Device];
 InitInfo.ImageCount = [Your Swap Chain Image Count (Normally 3 or so)];
+InitInfo.MsaaSamples = [Your Render pass msaa sample count];
 
 ImGui_ImplVulkan_Init(&InitInfo);
 
