@@ -119,6 +119,7 @@ typedef struct
 	VkDevice Device;
 	VkPhysicalDevice PhysicalDevice;
 	uint32_t ImageCount;
+	VkSampleCountFlagBits MsaaSamples;
 } ImGui_ImplVulkan_InitInfo;
 
 typedef struct
@@ -138,6 +139,7 @@ struct
 	VkDevice Device;
 	VkPhysicalDevice PhysicalDevice;
 	uint32_t ImageCount;
+	VkSampleCountFlagBits MsaaSamples;
 
 	VkPipeline Pipeline;
 	VkPipeline OpaquePipeline;
@@ -447,6 +449,7 @@ void ImGui_SetupRenderState(ImDrawData* DrawData, VkCommandBuffer CommandBuffer,
 	Viewport.height = (float)FramebufferHeight;
 	Viewport.minDepth = 0.0f;
 	Viewport.maxDepth = 1.0f;
+//	printf("%f %f\n", Viewport.width, Viewport.height);
 	vkCmdSetViewport(CommandBuffer, 0, 1, &Viewport);
 
 	float Scale[2];
@@ -577,13 +580,14 @@ bool ImGui_ImplVulkan_RenderDrawData(ImDrawData* DrawData, VkCommandBuffer Comma
 				vkCmdSetScissor(CommandBuffer, 0, 1, &Scissor);
 
 				// Draw
+				vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.Pipeline);
 				for (int i = 0; i < NonAlphaTextureCount; i++)
 				{
 					if (NonAlphaTextures[i] == DrawCmd->TextureId)
+					{
 						vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.OpaquePipeline);
-					else
-						vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.Pipeline);
-
+						break;
+					}						
 				}
 				
 				vkCmdBindDescriptorSets(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, 0, 1, (VkDescriptorSet*)DrawCmd->TextureId, 0, NULL);
@@ -798,7 +802,7 @@ bool ImGui_CreateGraphicsPipeline()
 	MultisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 	MultisampleStateCreateInfo.pNext = NULL;
 	MultisampleStateCreateInfo.flags = 0;
-	MultisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	MultisampleStateCreateInfo.rasterizationSamples = ImGui_ImplVulkan_Renderer_Info.MsaaSamples;
 	MultisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
 	MultisampleStateCreateInfo.minSampleShading = 1.0;
 	MultisampleStateCreateInfo.pSampleMask = NULL;
@@ -887,6 +891,7 @@ void ImGui_ImplVulkan_Init(ImGui_ImplVulkan_InitInfo* InitInfo)
 	ImGui_ImplVulkan_Renderer_Info.Device = InitInfo->Device;
 	ImGui_ImplVulkan_Renderer_Info.PhysicalDevice = InitInfo->PhysicalDevice;
 	ImGui_ImplVulkan_Renderer_Info.ImageCount = InitInfo->ImageCount;
+	ImGui_ImplVulkan_Renderer_Info.MsaaSamples = InitInfo->MsaaSamples;
 
 	ImGuiIO* IO = &ImGui::GetIO();
 	IM_ASSERT(IO->BackendRendererUserData == NULL && "Already initialized a renderer backend!");
@@ -916,7 +921,7 @@ void ImGui_ImplVulkan_Shutdown()
 	vkDestroyBuffer(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.FontUploadBuffer, NULL);
 	vkFreeMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.FontUploadBufferMemory, NULL);
 
-	for (int i = 0; i < ImGui_ImplVulkan_Renderer_Info.ImageCount; i++)
+	for (uint32_t i = 0; i < ImGui_ImplVulkan_Renderer_Info.ImageCount; i++)
 	{
 		vkDestroyBuffer(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[i].VertexBuffer, NULL);
 		vkFreeMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[i].VertexBufferMemory, NULL);
