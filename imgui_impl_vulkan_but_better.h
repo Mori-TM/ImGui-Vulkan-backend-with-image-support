@@ -449,19 +449,15 @@ void ImGui_SetupRenderState(ImDrawData* DrawData, VkCommandBuffer CommandBuffer,
 	Viewport.height = (float)FramebufferHeight;
 	Viewport.minDepth = 0.0f;
 	Viewport.maxDepth = 1.0f;
-//	printf("%f %f\n", Viewport.width, Viewport.height);
 	vkCmdSetViewport(CommandBuffer, 0, 1, &Viewport);
 
-	float Scale[2];
-	Scale[0] = 2.0 / DrawData->DisplaySize.x;
-	Scale[1] = 2.0 / DrawData->DisplaySize.y;
+	float Transform[4];
+	Transform[0] = 2.0 / DrawData->DisplaySize.x;
+	Transform[1] = 2.0 / DrawData->DisplaySize.y;
+	Transform[2] = -1.0 - DrawData->DisplayPos.x * Transform[0];
+	Transform[3] = -1.0 - DrawData->DisplayPos.y * Transform[1];
 
-	float Translate[2];
-	Translate[0] = -1.0 - DrawData->DisplayPos.x * Scale[0];
-	Translate[1] = -1.0 - DrawData->DisplayPos.y * Scale[1];
-
-	vkCmdPushConstants(CommandBuffer, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 0, sizeof(float) * 2, Scale);
-	vkCmdPushConstants(CommandBuffer, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 2, sizeof(float) * 2, Translate);
+	vkCmdPushConstants(CommandBuffer, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 4, Transform);
 }
 
 bool ImGui_ImplVulkan_RenderDrawData(ImDrawData* DrawData, VkCommandBuffer CommandBuffer, int NonAlphaTextureCount, ImTextureID* NonAlphaTextures)
