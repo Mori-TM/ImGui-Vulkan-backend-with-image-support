@@ -645,7 +645,7 @@ bool ImGui_CreateSampler()
 	SamplerInfo.flags = 0;
 	SamplerInfo.magFilter = VK_FILTER_NEAREST;
 	SamplerInfo.minFilter = VK_FILTER_NEAREST;
-	SamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	SamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 	SamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	SamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	SamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -867,7 +867,10 @@ bool ImGui_CreateGraphicsPipeline()
 	ColorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_CLEAR;
 	ColorBlendStateCreateInfo.attachmentCount = 1;
 	ColorBlendStateCreateInfo.pAttachments = &ColorBlendAttachmentState;
-	ColorBlendStateCreateInfo.blendConstants[4] = {};
+	ColorBlendStateCreateInfo.blendConstants[0] = 0.0;
+	ColorBlendStateCreateInfo.blendConstants[1] = 0.0;
+	ColorBlendStateCreateInfo.blendConstants[2] = 0.0;
+	ColorBlendStateCreateInfo.blendConstants[3] = 0.0;
 
 	VkDynamicState DynamicStates[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
