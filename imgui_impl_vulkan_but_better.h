@@ -162,6 +162,9 @@ struct
 	bool SetNULL;
 	uint32_t Index;
 	ImGui_ImplVulkan_Buffers* Buffers;
+
+	bool LastPipeline;//0 = Opaque, 1 = Transparent
+	bool LastDescriptorSet;//0 = Font, 1 = Some other
 } ImGui_ImplVulkan_Renderer_Info;
 
 VkDeviceSize ImGui_BufferMemoryAlignment = 256;
@@ -176,6 +179,12 @@ uint32_t ImGui_ImplVulkan_MemoryType(VkMemoryPropertyFlags PropertyFlags, uint32
 			return i;
 
 	return 0xFFFFFFFF;
+}
+
+bool ImGui_ImplVulkanPrintError(const char* Msg)
+{
+	printf(Msg);
+	return false;
 }
 
 bool ImGui_ImplVulkan_CreateFontsTexture(VkCommandBuffer CommandBuffer)
@@ -210,7 +219,7 @@ bool ImGui_ImplVulkan_CreateFontsTexture(VkCommandBuffer CommandBuffer)
 	ImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	if (vkCreateImage(ImGui_ImplVulkan_Renderer_Info.Device, &ImageCreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.FontImage) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Font Image");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Font Image");
 
 	VkMemoryRequirements MemoryRequirements;
 	vkGetImageMemoryRequirements(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.FontImage, &MemoryRequirements);
@@ -220,12 +229,12 @@ bool ImGui_ImplVulkan_CreateFontsTexture(VkCommandBuffer CommandBuffer)
 	MemoryAllocateInfo.pNext = NULL;
 	MemoryAllocateInfo.allocationSize = MemoryRequirements.size;
 	MemoryAllocateInfo.memoryTypeIndex = ImGui_ImplVulkan_MemoryType(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, MemoryRequirements.memoryTypeBits);
-	
+
 	if (vkAllocateMemory(ImGui_ImplVulkan_Renderer_Info.Device, &MemoryAllocateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.FontImageMemory) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Allocate Font Image Memory");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Allocate Font Image Memory");
 
 	if (vkBindImageMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.FontImage, ImGui_ImplVulkan_Renderer_Info.FontImageMemory, 0) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Bind Font Image Memory");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Bind Font Image Memory");
 
 	// Create the Image View
 	VkImageViewCreateInfo ImageViewCreateInfo;
@@ -246,7 +255,7 @@ bool ImGui_ImplVulkan_CreateFontsTexture(VkCommandBuffer CommandBuffer)
 	ImageViewCreateInfo.subresourceRange.layerCount = 1;
 
 	if (vkCreateImageView(ImGui_ImplVulkan_Renderer_Info.Device, &ImageViewCreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.FontImageView) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Font Image View");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Font Image View");
 
 	// Update the Descriptor Set
 	VkDescriptorImageInfo DescriptorImageInfo;
@@ -280,7 +289,7 @@ bool ImGui_ImplVulkan_CreateFontsTexture(VkCommandBuffer CommandBuffer)
 	BufferCreateInfo.pQueueFamilyIndices = NULL;
 
 	if (vkCreateBuffer(ImGui_ImplVulkan_Renderer_Info.Device, &BufferCreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.FontUploadBuffer) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Font Upload Buffer");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Font Upload Buffer");
 
 	vkGetBufferMemoryRequirements(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.FontUploadBuffer, &MemoryRequirements);
 
@@ -292,15 +301,15 @@ bool ImGui_ImplVulkan_CreateFontsTexture(VkCommandBuffer CommandBuffer)
 	MemoryAllocateInfo.memoryTypeIndex = ImGui_ImplVulkan_MemoryType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, MemoryRequirements.memoryTypeBits);
 
 	if (vkAllocateMemory(ImGui_ImplVulkan_Renderer_Info.Device, &MemoryAllocateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.FontUploadBufferMemory) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Allocate Font Upload Buffer Memory");
-	
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Allocate Font Upload Buffer Memory");
+
 	if (vkBindBufferMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.FontUploadBuffer, ImGui_ImplVulkan_Renderer_Info.FontUploadBufferMemory, 0) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Bind Font Upload Buffer Memory");
-	
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Bind Font Upload Buffer Memory");
+
 	// Upload to Buffer
 	char* Data = NULL;
 	if (vkMapMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.FontUploadBufferMemory, 0, UploadSize, 0, (void**)(&Data)) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Map Font Memory");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Map Font Memory");
 
 	memcpy(Data, Pixel, UploadSize);
 
@@ -312,7 +321,7 @@ bool ImGui_ImplVulkan_CreateFontsTexture(VkCommandBuffer CommandBuffer)
 	MappedMemoryRange.size = UploadSize;
 
 	if (vkFlushMappedMemoryRanges(ImGui_ImplVulkan_Renderer_Info.Device, 1, &MappedMemoryRange) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Flush Mapped Memory Ranges");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Flush Mapped Memory Ranges");
 
 	vkUnmapMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.FontUploadBufferMemory);
 
@@ -332,10 +341,10 @@ bool ImGui_ImplVulkan_CreateFontsTexture(VkCommandBuffer CommandBuffer)
 	ImageMemoryBarrier.subresourceRange.levelCount = 1;
 	ImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	ImageMemoryBarrier.subresourceRange.layerCount = 1;
-	
+
 
 	vkCmdPipelineBarrier(CommandBuffer, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &ImageMemoryBarrier);
-	
+
 	VkBufferImageCopy BufferImageCopy;
 	BufferImageCopy.bufferOffset = 0;
 	BufferImageCopy.bufferRowLength = 0;
@@ -350,7 +359,7 @@ bool ImGui_ImplVulkan_CreateFontsTexture(VkCommandBuffer CommandBuffer)
 	BufferImageCopy.imageExtent.depth = 1;
 
 	vkCmdCopyBufferToImage(CommandBuffer, ImGui_ImplVulkan_Renderer_Info.FontUploadBuffer, ImGui_ImplVulkan_Renderer_Info.FontImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &BufferImageCopy);
-	
+
 	ImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	ImageMemoryBarrier.pNext = NULL;
 	ImageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -366,9 +375,9 @@ bool ImGui_ImplVulkan_CreateFontsTexture(VkCommandBuffer CommandBuffer)
 	ImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	ImageMemoryBarrier.subresourceRange.layerCount = 1;
 	vkCmdPipelineBarrier(CommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &ImageMemoryBarrier);
-	
+
 	IO->Fonts->SetTexID((ImTextureID)&ImGui_ImplVulkan_Renderer_Info.DescriptorSet);
-	
+
 	return 1;
 }
 
@@ -383,7 +392,7 @@ void ImGui_ImplVulkan_DestroyFontUploadObjects()
 
 void ImGui_ImplVulkan_NewFrame()
 {
-	
+
 }
 
 bool ImGui_CreateOrResizeBuffer(VkBuffer* Buffer, VkDeviceMemory* BufferMemory, VkDeviceSize* BufferSize, size_t NewBufferSize, VkBufferUsageFlagBits Usage)
@@ -404,9 +413,9 @@ bool ImGui_CreateOrResizeBuffer(VkBuffer* Buffer, VkDeviceMemory* BufferMemory, 
 	BufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	BufferCreateInfo.queueFamilyIndexCount = 0;
 	BufferCreateInfo.pQueueFamilyIndices = NULL;
-	
+
 	if (vkCreateBuffer(ImGui_ImplVulkan_Renderer_Info.Device, &BufferCreateInfo, NULL, Buffer) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Vertex Buffer");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Vertex Buffer");
 
 	VkMemoryRequirements MemoryRequirements;
 	vkGetBufferMemoryRequirements(ImGui_ImplVulkan_Renderer_Info.Device, *Buffer, &MemoryRequirements);
@@ -420,10 +429,10 @@ bool ImGui_CreateOrResizeBuffer(VkBuffer* Buffer, VkDeviceMemory* BufferMemory, 
 	MemoryAllocateInfo.memoryTypeIndex = ImGui_ImplVulkan_MemoryType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, MemoryRequirements.memoryTypeBits);
 
 	if (vkAllocateMemory(ImGui_ImplVulkan_Renderer_Info.Device, &MemoryAllocateInfo, NULL, BufferMemory) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Allocate Vertex Buffer Memory");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Allocate Vertex Buffer Memory");
 
 	if (vkBindBufferMemory(ImGui_ImplVulkan_Renderer_Info.Device, *Buffer, *BufferMemory, 0) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Bind Vertex Buffer Memory");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Bind Vertex Buffer Memory");
 
 	*BufferSize = MemoryRequirements.size;
 
@@ -433,7 +442,9 @@ bool ImGui_CreateOrResizeBuffer(VkBuffer* Buffer, VkDeviceMemory* BufferMemory, 
 void ImGui_SetupRenderState(ImDrawData* DrawData, VkCommandBuffer CommandBuffer, int FramebufferWidth, int FramebufferHeight)
 {
 	vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.Pipeline);
+	ImGui_ImplVulkan_Renderer_Info.LastPipeline = true;
 	vkCmdBindDescriptorSets(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, 0, 1, &ImGui_ImplVulkan_Renderer_Info.DescriptorSet, 0, NULL);
+	ImGui_ImplVulkan_Renderer_Info.LastDescriptorSet = false;
 
 	if (DrawData->TotalVtxCount > 0)
 	{
@@ -452,10 +463,10 @@ void ImGui_SetupRenderState(ImDrawData* DrawData, VkCommandBuffer CommandBuffer,
 	vkCmdSetViewport(CommandBuffer, 0, 1, &Viewport);
 
 	float Transform[4];
-	Transform[0] = 2.0 / DrawData->DisplaySize.x;
-	Transform[1] = 2.0 / DrawData->DisplaySize.y;
-	Transform[2] = -1.0 - DrawData->DisplayPos.x * Transform[0];
-	Transform[3] = -1.0 - DrawData->DisplayPos.y * Transform[1];
+	Transform[0] = 2.0f / DrawData->DisplaySize.x;
+	Transform[1] = 2.0f / DrawData->DisplaySize.y;
+	Transform[2] = -1.0f - DrawData->DisplayPos.x * Transform[0];
+	Transform[3] = -1.0f - DrawData->DisplayPos.y * Transform[1];
 
 	vkCmdPushConstants(CommandBuffer, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 4, Transform);
 }
@@ -478,7 +489,7 @@ bool ImGui_ImplVulkan_RenderDrawData(ImDrawData* DrawData, VkCommandBuffer Comma
 	}
 
 	ImGui_ImplVulkan_Renderer_Info.Index = (ImGui_ImplVulkan_Renderer_Info.Index + 1) % ImGui_ImplVulkan_Renderer_Info.ImageCount;
-	
+
 	if (DrawData->TotalVtxCount > 0)
 	{
 		size_t VertexSize = DrawData->TotalVtxCount * sizeof(ImDrawVert);
@@ -488,23 +499,23 @@ bool ImGui_ImplVulkan_RenderDrawData(ImDrawData* DrawData, VkCommandBuffer Comma
 			ImGui_CreateOrResizeBuffer(&ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].VertexBuffer, &ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].VertexBufferMemory, &ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].VertexBufferSize, VertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		if (ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].IndexBuffer == VK_NULL_HANDLE || ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].IndexBufferSize < IndexSize)
 			ImGui_CreateOrResizeBuffer(&ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].IndexBuffer, &ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].IndexBufferMemory, &ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].IndexBufferSize, IndexSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-	
+
 		ImDrawVert* VertexDst = NULL;
 		ImDrawIdx* IndexDst = NULL;
 
 		if (vkMapMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].VertexBufferMemory, 0, ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].VertexBufferSize, 0, (void**)(&VertexDst)) != VK_SUCCESS)
-			return printf("[ImGui Vulkan] Failed to Map Vertex Buffer Memory");
+			return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Map Vertex Buffer Memory");
 
 		if (vkMapMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].IndexBufferMemory, 0, ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].IndexBufferSize, 0, (void**)(&IndexDst)) != VK_SUCCESS)
-			return printf("[ImGui Vulkan] Failed to Map Index Buffer Memory");
+			return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Map Index Buffer Memory");
 
 		for (int i = 0; i < DrawData->CmdListsCount; i++)
 		{
 			const ImDrawList* DrawList = DrawData->CmdLists[i];
-			
+
 			memcpy(VertexDst, DrawList->VtxBuffer.Data, DrawList->VtxBuffer.Size * sizeof(ImDrawVert));
 			memcpy(IndexDst, DrawList->IdxBuffer.Data, DrawList->IdxBuffer.Size * sizeof(ImDrawIdx));
-		
+
 			VertexDst += DrawList->VtxBuffer.Size;
 			IndexDst += DrawList->IdxBuffer.Size;
 		}
@@ -523,13 +534,13 @@ bool ImGui_ImplVulkan_RenderDrawData(ImDrawData* DrawData, VkCommandBuffer Comma
 		MappedMemoryRange[1].size = VK_WHOLE_SIZE;
 
 		if (vkFlushMappedMemoryRanges(ImGui_ImplVulkan_Renderer_Info.Device, 2, MappedMemoryRange) != VK_SUCCESS)
-			return printf("[ImGui Vulkan] Failed to Flush Vertex Index Mapped Memory Ranges");
+			return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Flush Vertex Index Mapped Memory Ranges");
 
 		vkUnmapMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].VertexBufferMemory);
 		vkUnmapMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[ImGui_ImplVulkan_Renderer_Info.Index].IndexBufferMemory);
 	}
 
-	
+
 	ImGui_SetupRenderState(DrawData, CommandBuffer, FramebufferWidth, FramebufferHeight);
 
 	ImVec2 ClipOff = DrawData->DisplayPos;
@@ -576,17 +587,36 @@ bool ImGui_ImplVulkan_RenderDrawData(ImDrawData* DrawData, VkCommandBuffer Comma
 				vkCmdSetScissor(CommandBuffer, 0, 1, &Scissor);
 
 				// Draw
-				vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.Pipeline);
+				if (!ImGui_ImplVulkan_Renderer_Info.LastPipeline)
+				{
+					vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.Pipeline);
+					ImGui_ImplVulkan_Renderer_Info.LastPipeline = true;
+				}					
+
 				for (int i = 0; i < NonAlphaTextureCount; i++)
 				{
 					if (NonAlphaTextures[i] == DrawCmd->TextureId)
 					{
 						vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.OpaquePipeline);
+						ImGui_ImplVulkan_Renderer_Info.LastPipeline = false;
 						break;
-					}						
+					}
 				}
 				
-				vkCmdBindDescriptorSets(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, 0, 1, (VkDescriptorSet*)DrawCmd->TextureId, 0, NULL);
+				ImTextureID Set0 = DrawCmd->TextureId;
+				ImTextureID Set1 = &ImGui_ImplVulkan_Renderer_Info.DescriptorSet;
+
+				if (!ImGui_ImplVulkan_Renderer_Info.LastDescriptorSet && Set0 == Set1)
+				{}
+				else
+				{
+					vkCmdBindDescriptorSets(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, 0, 1, (VkDescriptorSet*)DrawCmd->TextureId, 0, NULL);
+					if (DrawCmd->TextureId == ImGui_ImplVulkan_Renderer_Info.DescriptorSet)
+						ImGui_ImplVulkan_Renderer_Info.LastDescriptorSet = false;
+					else
+						ImGui_ImplVulkan_Renderer_Info.LastDescriptorSet = true;
+				}
+
 				vkCmdDrawIndexed(CommandBuffer, DrawCmd->ElemCount, 1, DrawCmd->IdxOffset + IndexOffset, DrawCmd->VtxOffset + VertexOffset, 0);
 			}
 		}
@@ -594,13 +624,13 @@ bool ImGui_ImplVulkan_RenderDrawData(ImDrawData* DrawData, VkCommandBuffer Comma
 		VertexOffset += DrawList->VtxBuffer.Size;
 	}
 
-	VkRect2D Scissor = 
-	{ 
-		{ 0, 0 }, 
-		{ 
-			(uint32_t)FramebufferWidth, 
-			(uint32_t)FramebufferHeight 
-		} 
+	VkRect2D Scissor =
+	{
+		{ 0, 0 },
+		{
+			(uint32_t)FramebufferWidth,
+			(uint32_t)FramebufferHeight
+		}
 	};
 	vkCmdSetScissor(CommandBuffer, 0, 1, &Scissor);
 
@@ -613,8 +643,8 @@ bool ImGui_CreateSampler()
 	SamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	SamplerInfo.pNext = NULL;
 	SamplerInfo.flags = 0;
-	SamplerInfo.magFilter = VK_FILTER_LINEAR;
-	SamplerInfo.minFilter = VK_FILTER_LINEAR;
+	SamplerInfo.magFilter = VK_FILTER_NEAREST;
+	SamplerInfo.minFilter = VK_FILTER_NEAREST;
 	SamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 	SamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	SamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -630,7 +660,7 @@ bool ImGui_CreateSampler()
 	SamplerInfo.unnormalizedCoordinates = VK_FALSE;
 
 	if (vkCreateSampler(ImGui_ImplVulkan_Renderer_Info.Device, &SamplerInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.Sampler) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Sampler");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Sampler");
 
 	return 1;
 }
@@ -653,7 +683,7 @@ bool ImGui_CreateDescriptorSets()
 	DescriptorSetLayoutCreateInfo.pBindings = &LayoutBinding;
 
 	if (vkCreateDescriptorSetLayout(ImGui_ImplVulkan_Renderer_Info.Device, &DescriptorSetLayoutCreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.DescriptorSetLayout) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Sampler");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Sampler");
 
 	VkDescriptorSetAllocateInfo AllocateInfo;
 	AllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -663,7 +693,7 @@ bool ImGui_CreateDescriptorSets()
 	AllocateInfo.pSetLayouts = &ImGui_ImplVulkan_Renderer_Info.DescriptorSetLayout;
 
 	if (vkAllocateDescriptorSets(ImGui_ImplVulkan_Renderer_Info.Device, &AllocateInfo, &ImGui_ImplVulkan_Renderer_Info.DescriptorSet) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Allocate Descriptor Set");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Allocate Descriptor Set");
 
 	return 1;
 }
@@ -685,7 +715,7 @@ bool ImGui_CreatePipelineLayout()
 	LayoutCreateInfo.pPushConstantRanges = &PushConstant;
 
 	if (vkCreatePipelineLayout(ImGui_ImplVulkan_Renderer_Info.Device, &LayoutCreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.PipelineLayout) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Pipeline Layout");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Pipeline Layout");
 
 	return 1;
 }
@@ -700,7 +730,7 @@ bool ImGui_CreateShaderModules()
 	CreateInfo.pCode = ImGuiVertexShader;
 
 	if (vkCreateShaderModule(ImGui_ImplVulkan_Renderer_Info.Device, &CreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.VertexShader) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Vertex Shader Module");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Vertex Shader Module");
 
 	CreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	CreateInfo.pNext = NULL;
@@ -709,7 +739,7 @@ bool ImGui_CreateShaderModules()
 	CreateInfo.pCode = ImGuiFragmentShader;
 
 	if (vkCreateShaderModule(ImGui_ImplVulkan_Renderer_Info.Device, &CreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.FragmentShader) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Fragment Shader Module");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Fragment Shader Module");
 
 	return 1;
 }
@@ -805,16 +835,6 @@ bool ImGui_CreateGraphicsPipeline()
 	MultisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
 	MultisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
 
-	VkPipelineColorBlendAttachmentState ColorBlendAttachmentState;
-	ColorBlendAttachmentState.blendEnable = VK_TRUE;
-	ColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	ColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	ColorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-	ColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	ColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	ColorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-	ColorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-
 	VkPipelineDepthStencilStateCreateInfo DepthStencilStateCreateInfo;
 	DepthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 	DepthStencilStateCreateInfo.pNext = NULL;
@@ -828,6 +848,16 @@ bool ImGui_CreateGraphicsPipeline()
 	DepthStencilStateCreateInfo.back = {};
 	DepthStencilStateCreateInfo.minDepthBounds = 0.0;
 	DepthStencilStateCreateInfo.maxDepthBounds = 1.0;
+
+	VkPipelineColorBlendAttachmentState ColorBlendAttachmentState;
+	ColorBlendAttachmentState.blendEnable = VK_TRUE;
+	ColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	ColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	ColorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	ColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	ColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	ColorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	ColorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
 	VkPipelineColorBlendStateCreateInfo ColorBlendStateCreateInfo;
 	ColorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -870,11 +900,11 @@ bool ImGui_CreateGraphicsPipeline()
 	PipelineCreateInfo.basePipelineIndex = 0;
 
 	if (vkCreateGraphicsPipelines(ImGui_ImplVulkan_Renderer_Info.Device, NULL, 1, &PipelineCreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.Pipeline) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Graphics Pipeline");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Graphics Pipeline");
 
 	ColorBlendAttachmentState.blendEnable = VK_FALSE;
 	if (vkCreateGraphicsPipelines(ImGui_ImplVulkan_Renderer_Info.Device, NULL, 1, &PipelineCreateInfo, NULL, &ImGui_ImplVulkan_Renderer_Info.OpaquePipeline) != VK_SUCCESS)
-		return printf("[ImGui Vulkan] Failed to Create Opaque Graphics Pipeline");
+		return ImGui_ImplVulkanPrintError("[ImGui Vulkan] Failed to Create Opaque Graphics Pipeline");
 
 	return 1;
 }
@@ -888,6 +918,8 @@ void ImGui_ImplVulkan_Init(ImGui_ImplVulkan_InitInfo* InitInfo)
 	ImGui_ImplVulkan_Renderer_Info.PhysicalDevice = InitInfo->PhysicalDevice;
 	ImGui_ImplVulkan_Renderer_Info.ImageCount = InitInfo->ImageCount;
 	ImGui_ImplVulkan_Renderer_Info.MsaaSamples = InitInfo->MsaaSamples;
+	ImGui_ImplVulkan_Renderer_Info.LastPipeline = false;
+	ImGui_ImplVulkan_Renderer_Info.LastDescriptorSet = false;
 
 	ImGuiIO* IO = &ImGui::GetIO();
 	IM_ASSERT(IO->BackendRendererUserData == NULL && "Already initialized a renderer backend!");
@@ -917,15 +949,23 @@ void ImGui_ImplVulkan_Shutdown()
 	vkDestroyBuffer(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.FontUploadBuffer, NULL);
 	vkFreeMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.FontUploadBufferMemory, NULL);
 
-	for (uint32_t i = 0; i < ImGui_ImplVulkan_Renderer_Info.ImageCount; i++)
+	if (ImGui_ImplVulkan_Renderer_Info.Buffers != NULL)
 	{
-		vkDestroyBuffer(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[i].VertexBuffer, NULL);
-		vkFreeMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[i].VertexBufferMemory, NULL);
-
-		vkDestroyBuffer(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[i].IndexBuffer, NULL);
-		vkFreeMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[i].IndexBufferMemory, NULL);
+		for (uint32_t i = 0; i < ImGui_ImplVulkan_Renderer_Info.ImageCount; i++)
+		{
+			if (ImGui_ImplVulkan_Renderer_Info.Buffers[i].VertexBuffer != NULL)
+			{
+				vkDestroyBuffer(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[i].VertexBuffer, NULL);
+				vkFreeMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[i].VertexBufferMemory, NULL);
+			}
+			if (ImGui_ImplVulkan_Renderer_Info.Buffers[i].IndexBuffer != NULL)
+			{
+				vkDestroyBuffer(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[i].IndexBuffer, NULL);
+				vkFreeMemory(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Buffers[i].IndexBufferMemory, NULL);
+			}
+		}
 	}
-	
+
 	vkDestroyDescriptorSetLayout(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.DescriptorSetLayout, NULL);
 	vkDestroyPipelineLayout(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.PipelineLayout, NULL);
 	vkDestroyPipeline(ImGui_ImplVulkan_Renderer_Info.Device, ImGui_ImplVulkan_Renderer_Info.Pipeline, NULL);
